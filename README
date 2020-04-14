@@ -1,0 +1,16 @@
+input files must be named as "input_hist.root"
+
+
+In the begining the name of the input root files \
+must be included in a text file like: \
+input1 \
+input2 \
+etc \
+Do not write _hist.root after it. \
+
+Any function will automatially convert the name into \
+input_hist.root \
+
+
+
+The README function would dump all the function described in this macro
