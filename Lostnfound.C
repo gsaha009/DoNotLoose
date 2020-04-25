@@ -163,6 +163,8 @@ void makeROC (TString text_file, TString histName, TString label, bool MinToX, b
   TH1F *sigEff_hist = new TH1F ("sigEff", "", nBins, min, max);
   TH1F *bkgEff_hist = new TH1F ("bkgEff", "", nBins, min, max);
   TH1F *bkgRej_hist = new TH1F ("bkgRej", "", nBins, min, max);
+  TH1F *sigPur_hist = new TH1F ("sigPurity", "", nBins, min, max);
+  TH1F *sigPurEff_hist = new TH1F ("sigPurity*sigEfficiency", "", nBins, min, max);
   TH1F *signf_hist  = new TH1F ("significance", "", nBins, min, max);
   TH1F *ROC_hist    = new TH1F ("ROC", "", nBins, 0.0, 1.0);
 
@@ -182,11 +184,13 @@ void makeROC (TString text_file, TString histName, TString label, bool MinToX, b
       if (XToMax) B += h->Integral(ib, nBins);
       else if (MinToX) B += h->Integral(0, ib);
     }
-    if (B == 0.0) continue;
-    float signf = S/TMath::Sqrt(S+B);
+    if ((S+B) == 0.0) continue;
+    float signf  = S/TMath::Sqrt(S+B);
     float sigEff = S/hvec[0]->Integral();
     float bkgEff = B/allBkgInt;
     float bkgRej = 1.0 - bkgEff;
+    float sigPur = S/(S+B);
+    float sigPurEff = sigPur*sigEff;
     std::cout<<std::setprecision(5)
 	     <<hvec[0]->GetBinCenter(ib)
 	     <<setw(16)<<S
@@ -202,6 +206,8 @@ void makeROC (TString text_file, TString histName, TString label, bool MinToX, b
       
     sigEff_hist->SetBinContent(ib, sigEff);
     signf_hist ->SetBinContent(ib, signf);
+    sigPur_hist->SetBinContent(ib, sigPur);
+    sigPurEff_hist->SetBinContent(ib, sigPurEff);
     bkgEff_hist->SetBinContent(ib, bkgEff);
     bkgRej_hist->SetBinContent(ib, bkgRej);
     ROC_hist ->SetBinContent(ROC_hist->FindBin(sigEff), bkgRej);
@@ -213,29 +219,39 @@ void makeROC (TString text_file, TString histName, TString label, bool MinToX, b
   cst->Divide(2,2);
   cst->cd(1);
   gPad->SetGrid();
-  gPad->SetFillColorAlpha(kGreen, 0.10);
-  TLegend *leg = new TLegend(0.725284,0.5790663,0.8817513,0.6945281,NULL,"brNDC");
+  TLegend *leg = new TLegend(0.7904787,0.3876892,0.9817165,0.7948981,NULL,"brNDC");
   sigEff_hist->SetLineColor(kBlue);
-  sigEff_hist->SetLineWidth(3);
+  sigEff_hist->SetLineWidth(2);
   sigEff_hist->SetXTitle(label);
-  sigEff_hist->SetYTitle("SignalEfficiency & BkgRejection");
-  sigEff_hist->SetTitle("SignalEfficiency & BkgRejection Vs. "+label);
+  sigEff_hist->SetYTitle("Efficiency (Purity)");
+  sigEff_hist->SetTitle("Efficiency (Purity) Vs. "+label);
   sigEff_hist->GetXaxis()->SetNdivisions(512);
   leg -> AddEntry (sigEff_hist, "SigEff", "l");
   sigEff_hist->Draw("HIST");
-  bkgRej_hist->SetLineColor(kRed);
-  bkgRej_hist->SetLineWidth(3);
-  bkgRej_hist->SetXTitle(label);
+
+  bkgEff_hist->SetLineColor(kMagenta);
+  bkgEff_hist->SetLineWidth(2);
   bkgEff_hist->GetXaxis()->SetNdivisions(512);
-  leg -> AddEntry (bkgRej_hist, "BkgRej", "l");
-  bkgRej_hist->Draw("same HIST");
+  leg -> AddEntry (bkgEff_hist, "BkgEff", "l");
+  bkgEff_hist ->Draw("same HIST");
+
+  sigPur_hist->SetLineColor(kBlack);
+  sigPur_hist->SetLineWidth(2);
+  sigPur_hist->GetXaxis()->SetNdivisions(512);
+  leg -> AddEntry (sigPur_hist, "SigPur", "l");
+  sigPur_hist->Draw("same HIST");
+
+  sigPurEff_hist->SetLineColor(kGreen+2);
+  sigPurEff_hist->SetLineWidth(2);
+  sigPurEff_hist->GetXaxis()->SetNdivisions(512);
+  leg -> AddEntry (sigPurEff_hist, "Sig(Pur*Eff)", "l");
+  sigPurEff_hist->Draw("same HIST");
   leg->Draw();
   
   cst->cd(2);
   gPad->SetGrid();
-  gPad->SetFillColorAlpha(kPink, 0.10);
-  signf_hist->SetLineColor(kBlack);
-  signf_hist->SetLineWidth(3);
+  signf_hist->SetLineColor(kRed+2);
+  signf_hist->SetLineWidth(2);
   signf_hist->SetXTitle(label);
   signf_hist->SetYTitle("S/Sqrt(S+B)");
   signf_hist->SetTitle("Significance Vs. "+label);
@@ -244,21 +260,27 @@ void makeROC (TString text_file, TString histName, TString label, bool MinToX, b
 
   cst->cd(3);
   gPad->SetGrid();
-  gPad->SetFillColorAlpha(kAzure, 0.10);
-  bkgEff_hist->SetLineColor(kMagenta);
-  bkgEff_hist->SetLineWidth(3);
-  bkgEff_hist->SetXTitle(label);
-  bkgEff_hist->SetYTitle("BackgroundEfficiency");
-  bkgEff_hist->SetTitle("BkgEfficiency Vs. "+label);
-  bkgEff_hist->GetXaxis()->SetNdivisions(512);
-  bkgEff_hist ->Draw("HIST");
-
+  TLegend *leg2 = new TLegend(0.825284,0.6790663,0.9817513,0.7945281,NULL,"brNDC");
+  sigEff_hist->SetLineColor(kBlue);
+  sigEff_hist->SetLineWidth(2);
+  sigEff_hist->SetXTitle(label);
+  sigEff_hist->SetYTitle("Efficiency");
+  sigEff_hist->SetTitle("Efficiency Vs. "+label);
+  sigEff_hist->GetXaxis()->SetNdivisions(512);
+  leg2 -> AddEntry (sigEff_hist, "SigEff", "l");
+  sigEff_hist->Draw("HIST");
+  bkgRej_hist->SetLineColor(kRed);
+  bkgRej_hist->SetLineWidth(2);
+  bkgRej_hist->GetXaxis()->SetNdivisions(512);
+  leg2 -> AddEntry (bkgRej_hist, "BkgRej", "l");
+  bkgRej_hist ->Draw("same HIST");
+  leg2->Draw();
+  
   cst->cd(4);
   gPad->SetGrid();
-  gPad->SetFillColorAlpha(kYellow, 0.10);
-  ROC_hist->SetMarkerColor(kGreen+2);
+  ROC_hist->SetMarkerColor(kCyan+2);
   ROC_hist->SetMarkerStyle(3);
-  ROC_hist->SetMarkerSize(0.5);
+  ROC_hist->SetMarkerSize(0.9);
   ROC_hist->SetXTitle("SignalEfficiency");
   ROC_hist->SetYTitle("BackgroundRejection");
   ROC_hist->SetTitle("ROC");
