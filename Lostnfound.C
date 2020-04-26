@@ -22,10 +22,17 @@
 #include <map>
 #include <set>
 
+#include "TMVA/Tools.h"
+#include "TMVA/Reader.h"
+#include "TMVA/MethodCuts.h"
+
+using namespace TMVA;
+
 void makeStack (TString text_file, TString histName, TString stackName, int rebin, int sigAmpl);
 void makeNormalised (TString text_file, TString histName, TString normName, int rebin);
 void makeROC (TString text_file, TString histName, TString label, bool MinToX, bool XToMax);
-void makeSignificance (TString text_file, TString histName, TString label, bool MinToX, bool XToMax);  
+void makeSignificance (TString text_file, TString histName, TString label, bool MinToX, bool XToMax);
+void checkOverTraining (TString text_file, TString label, TString methodName, TString weightfile);  
 void set_hstyle(TH1D* th, int icol, int itype, int iline, TString xlab, TString ylab, bool stack);
 void read_lines(std::string tname, std::vector<std::string>& files);
 
@@ -36,6 +43,7 @@ void README(){
 	   <<"makeNormalised   (TString text_file, TString histName, TString normName, int rebin)\n"
 	   <<"makeROC          (TString text_file, TString histName, TString label, bool MinToX, bool XToMax)\n"
 	   <<"makeSignificance (TString text_file, TString histName, TString label, bool MinToX, bool XToMax)\n"
+	   <<"checkOverTraining (TString text_file, TString label, TString methodName, TString weightfile)\n"
 	   <<"\n"
 	   <<">>>Auxiliary Functions::\n"
 	   <<"set_hstyle  (TH1D* th, int icol, int itype, int iline, TString xlab, TString ylab, bool stack)\n"
@@ -345,6 +353,235 @@ void makeSignificance (TString text_file, TString histName, TString label, bool 
   signf_hist ->Draw("HIST");
 
   cst->SaveAs(label+"_ROC.png");
+}
+
+void checkOverTraining (TString text_file, TString label, TString methodName, TString weightfile) {
+  
+  std::cout << "==> Start TMVAClassificationApplication" << std::endl;
+  TMVA::Reader *reader = new TMVA::Reader( "!Color:!Silent" );
+
+  // Create a set of variables and declare them to the reader
+  // - the variable names MUST corresponds in name and type to those given in the weight file(s) used
+
+  //float met;
+  //float HT;
+  float HTvec;
+  float HTMETfrac;
+  float j1j2DR;
+  //float j1j3DR;
+  float minJJDR;
+  float maxJJDR;
+  //float minJJDPhi;
+  float LT;
+  //float LTMETvec;
+  float LTMETfracInv;
+  //float l1l2InvM;
+  float l1l2DR;
+  //   float l1l2DPhi;
+  float l1MetDPhi;
+  //   float l2MetDPhi;
+  float j1MetDPhi;
+  float j2MetDPhi;
+  //float j3MetDPhi;
+  float j1l1DPhi;
+  //   float j1l2DPhi;
+  float minJLDPhi;
+  //float maxJLDPhi;
+  float maxLepMetDPhi;
+  float minJetMetDPhi;
+
+  //reader->AddVariable("met", &met);
+  //reader->AddVariable("HT", &HT);
+  reader->AddVariable("HTvec", &HTvec);
+  reader->AddVariable("HTMETfrac", &HTMETfrac);
+  reader->AddVariable("j1j2DR", &j1j2DR);
+  //reader->AddVariable("j1j3DR", &j1j3DR);
+  reader->AddVariable("minJJDR", &minJJDR);
+  reader->AddVariable("maxJJDR", &maxJJDR);
+  //   reader->AddVariable("minJJDPhi", &minJJDPhi);
+  reader->AddVariable("LT", &LT);
+  //   reader->AddVariable("LTMETvec", &LTMETvec);
+  reader->AddVariable("LTMETfracInv", &LTMETfracInv);
+  //   reader->AddVariable("l1l2InvM", &l1l2InvM);
+  reader->AddVariable("l1l2DR", &l1l2DR);
+  //   reader->AddVariable("l1l2DPhi", &l1l2DPhi);
+  reader->AddVariable("l1MetDPhi", &l1MetDPhi);
+  //   reader->AddVariable("l2MetDPhi", &l2MetDPhi);
+  reader->AddVariable("j1MetDPhi", &j1MetDPhi);
+  reader->AddVariable("j2MetDPhi", &j2MetDPhi);
+  //reader->AddVariable("j3MetDPhi", &j3MetDPhi);
+  reader->AddVariable("j1l1DPhi", &j1l1DPhi);
+  //   reader->AddVariable("j1l2DPhi", &j1l2DPhi);
+  reader->AddVariable("minJLDPhi", &minJLDPhi);
+  //   reader->AddVariable("maxJLDPhi", &maxJLDPhi);
+  reader->AddVariable("maxLepMetDPhi", &maxLepMetDPhi);
+  reader->AddVariable("minJetMetDPhi", &minJetMetDPhi);
+  //   reader->AddVariable("jInvM", &jInvM);
+
+  reader->BookMVA( methodName, weightfile );
+
+  
+  std::vector<std::string> lines;
+  read_lines(text_file.Data(), lines);
+  
+  std::vector<TH1F*>htrain;
+  std::vector<TH1F*>htest; 
+  for (auto& ln: lines) {
+    TString it = ln;
+    it += ".root";
+    std::cout<<it<<"\n";
+    TFile* file = TFile::Open(it);
+    if (!file) {
+      std::cout<<">>>file not found!!!\n";
+      continue;
+    }
+    TTree *tr = dynamic_cast<TTree*>(file->Get("train"));
+    TTree *te = dynamic_cast<TTree*>(file->Get("test"));
+
+    tr->SetBranchAddress("HTvec", &HTvec);
+    tr->SetBranchAddress("HTMETfrac", &HTMETfrac);
+    tr->SetBranchAddress("j1j2DR", &j1j2DR);
+    //tr->SetBranchAddress("j1j3DR", &j1j3DR);
+    tr->SetBranchAddress("minJJDR", &minJJDR);
+    tr->SetBranchAddress("maxJJDR", &maxJJDR);
+    //   tr->SetBranchAddress("minJJDPhi", &minJJDPhi);
+    tr->SetBranchAddress("LT", &LT);
+    //   tr->SetBranchAddress("LTMETvec", &LTMETvec);
+    tr->SetBranchAddress("LTMETfracInv", &LTMETfracInv);
+    //   tr->SetBranchAddress("l1l2InvM", &l1l2InvM);
+    tr->SetBranchAddress("l1l2DR", &l1l2DR);
+    //   tr->SetBranchAddress("l1l2DPhi", &l1l2DPhi);
+    tr->SetBranchAddress("l1MetDPhi", &l1MetDPhi);
+    //   tr->SetBranchAddress("l2MetDPhi", &l2MetDPhi);
+    tr->SetBranchAddress("j1MetDPhi", &j1MetDPhi);
+    tr->SetBranchAddress("j2MetDPhi", &j2MetDPhi);
+    //tr->SetBranchAddress("j3MetDPhi", &j3MetDPhi);
+    tr->SetBranchAddress("j1l1DPhi", &j1l1DPhi);
+    //   tr->SetBranchAddress("j1l2DPhi", &j1l2DPhi);
+    tr->SetBranchAddress("minJLDPhi", &minJLDPhi);
+    //   tr->SetBranchAddress("maxJLDPhi", &maxJLDPhi);
+    tr->SetBranchAddress("maxLepMetDPhi", &maxLepMetDPhi);
+    tr->SetBranchAddress("minJetMetDPhi", &minJetMetDPhi);
+    //   tr->SetBranchAddress("jInvM", &jInvM);
+
+    te->SetBranchAddress("HTvec", &HTvec);
+    te->SetBranchAddress("HTMETfrac", &HTMETfrac);
+    te->SetBranchAddress("j1j2DR", &j1j2DR);
+    //te->SetBranchAddress("j1j3DR", &j1j3DR);
+    te->SetBranchAddress("minJJDR", &minJJDR);
+    te->SetBranchAddress("maxJJDR", &maxJJDR);
+    //   te->SetBranchAddress("minJJDPhi", &minJJDPhi);
+    te->SetBranchAddress("LT", &LT);
+    //   te->SetBranchAddress("LTMETvec", &LTMETvec);
+    te->SetBranchAddress("LTMETfracInv", &LTMETfracInv);
+    //   te->SetBranchAddress("l1l2InvM", &l1l2InvM);
+    te->SetBranchAddress("l1l2DR", &l1l2DR);
+    //   te->SetBranchAddress("l1l2DPhi", &l1l2DPhi);
+    te->SetBranchAddress("l1MetDPhi", &l1MetDPhi);
+    //   te->SetBranchAddress("l2MetDPhi", &l2MetDPhi);
+    te->SetBranchAddress("j1MetDPhi", &j1MetDPhi);
+    te->SetBranchAddress("j2MetDPhi", &j2MetDPhi);
+    //te->SetBranchAddress("j3MetDPhi", &j3MetDPhi);
+    te->SetBranchAddress("j1l1DPhi", &j1l1DPhi);
+    //   te->SetBranchAddress("j1l2DPhi", &j1l2DPhi);
+    te->SetBranchAddress("minJLDPhi", &minJLDPhi);
+    //   te->SetBranchAddress("maxJLDPhi", &maxJLDPhi);
+    te->SetBranchAddress("maxLepMetDPhi", &maxLepMetDPhi);
+    te->SetBranchAddress("minJetMetDPhi", &minJetMetDPhi);
+    //   te->SetBranchAddress("jInvM", &jInvM);
+
+
+    TH1F *train_response = new TH1F ("train_response", "", 1000, -1.0, 1.0);
+    TH1F *test_response  = new TH1F ("test_response", "", 1000, -1.0, 1.0);
+    //Loop over training events
+    for (size_t i = 0; i < tr->GetEntries(); ++i) {
+      tr->GetEntry(i);
+      train_response -> Fill(reader->EvaluateMVA(methodName));
+    }
+    htrain.push_back(train_response);
+
+    //Loop over training events
+    for (size_t i = 0; i < te->GetEntries(); ++i) {
+      te->GetEntry(i);
+      test_response -> Fill(reader->EvaluateMVA(methodName));
+    }
+    htest.push_back(test_response);
+  }
+
+  int nBins = htrain[0]->GetNbinsX();
+  float min = htrain[0]->GetBinCenter(1);
+  float max = htrain[0]->GetBinCenter(nBins);
+  
+  TH1F *ROC_train    = new TH1F ("ROC_train", "", nBins, 0.0, 1.0);
+
+  for (size_t ib = 1; ib <= nBins; ++ib) {
+    int irow = 0;
+    float S = htrain[0]->Integral(ib, nBins);
+    float B = 0.0;
+    float allBkgInt = 0.0;
+    for (auto& h: htrain){
+      irow++;
+      if (irow == 1) continue; 
+      allBkgInt += h->Integral();
+      B += h->Integral(ib, nBins);
+    }
+    if ((S+B) == 0.0) continue;
+    float sigEff = S/htrain[0]->Integral();
+    float bkgEff = B/allBkgInt;
+    float bkgRej = 1.0 - bkgEff;
+
+    ROC_train ->SetBinContent(ROC_train->FindBin(sigEff), bkgRej);
+  }
+
+  int nBins_ = htest[0]->GetNbinsX();
+  float min_ = htest[0]->GetBinCenter(1);
+  float max_ = htest[0]->GetBinCenter(nBins_);
+  
+  TH1F *ROC_test    = new TH1F ("ROC_test", "", nBins_, 0.0, 1.0);
+
+  for (size_t ib = 1; ib <= nBins_; ++ib) {
+    int irow = 0;
+    float S = htest[0]->Integral(ib, nBins_);
+    float B = 0.0;
+    float allBkgInt = 0.0;
+    for (auto& h: htest){
+      irow++;
+      if (irow == 1) continue; 
+      allBkgInt += h->Integral();
+      B += h->Integral(ib, nBins);
+    }
+    if ((S+B) == 0.0) continue;
+    float sigEff = S/htest[0]->Integral();
+    float bkgEff = B/allBkgInt;
+    float bkgRej = 1.0 - bkgEff;
+
+    ROC_test ->SetBinContent(ROC_test->FindBin(sigEff), bkgRej);
+  }
+
+  
+  gStyle->SetOptStat(0);
+  TCanvas *cst = new TCanvas("cst","norm hists",1600,1200);
+  cst->cd(1);
+  gPad->SetGrid();
+  TLegend *leg = new TLegend(0.7904787,0.3876892,0.9817165,0.7948981,NULL,"brNDC");
+  ROC_train->SetMarkerColor(kBlue);
+  ROC_train->SetLineColor(kBlue);
+  ROC_train->SetMarkerStyle(4);
+  ROC_train->SetMarkerSize(0.5);
+  ROC_train->SetXTitle("SignalEfficiency");
+  ROC_train->SetYTitle("BackgroundRejection");
+  ROC_train->SetTitle("ROC");
+  ROC_train->GetXaxis()->SetNdivisions(512);
+  leg -> AddEntry (ROC_train, "ROC_Train", "l");
+  ROC_train ->Draw("P");
+  ROC_test->SetMarkerColor(kRed);
+  ROC_test->SetLineColor(kRed);
+  ROC_test->SetMarkerStyle(8);
+  ROC_test->SetMarkerSize(0.5);
+  ROC_test->GetXaxis()->SetNdivisions(512);
+  leg -> AddEntry (ROC_test, "ROC_Test", "l");
+  ROC_test ->Draw("SAME P");
+  leg->Draw();
 }
 
 void read_lines(std::string tname, std::vector<std::string>& files) {
